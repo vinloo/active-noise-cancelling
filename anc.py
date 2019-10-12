@@ -6,21 +6,21 @@ import matplotlib.pyplot as plt
 import time
 from tkinter import TclError
 
-# constants (can be set lower (worse) or higher (better) depending on hardware)
-CHUNK = 1024 * 2             # samples per frame
-FORMAT = pyaudio.paInt16     # audio format
-CHANNELS = 1                 # single channel for microphone
-RATE = 44100                 # samples per second
+# Constants
+CHUNK = 1024 * 2             # Samples per frame
+FORMAT = pyaudio.paInt16     # Audio format
+CHANNELS = 1                 # Single channel for microphone
+RATE = 44100                 # Samples per second
 
-# create matplotlib figure and axes
+# Create matplotlib figure and axes
 fig, ax = plt.subplots(1, figsize=(15, 7))
-plt.axhline(y=128,linestyle='--', color='gray')
+plt.axhline(y=128, linestyle='--', color='gray')
 
-# pyaudio class instance
+# PyAudio class instance
 p = pyaudio.PyAudio()
 
-# stream object to get data from microphone
-stream = p.open(
+# Stream object to get data from microphone
+inputstream = p.open(
     format=FORMAT,
     channels=CHANNELS,
     rate=RATE,
@@ -29,14 +29,24 @@ stream = p.open(
     frames_per_buffer=CHUNK
 )
 
-# variable for plotting
+# Stream object to output antisound
+outputstream = p.open(
+    format=FORMAT,
+    channels=CHANNELS,
+    rate=RATE,
+    input=True,
+    output=True,
+    frames_per_buffer=CHUNK
+)
+
+# Variable for plotting
 x = np.arange(0, 2 * CHUNK, 2)
 
-# create a line object with random data
-line, = ax.plot(x, np.random.rand(CHUNK), '-', lw=1, mec=(255,0,0,1))
-line_mirror, = ax.plot(x, np.random.rand(CHUNK), '-', lw=1, mec=(0,0,255,1))
+# Create a line object with random data
+line, = ax.plot(x, np.random.rand(CHUNK), '-', lw=1, mec=(255, 0, 0, 1))
+line_mirror, = ax.plot(x, np.random.rand(CHUNK), '-', lw=1, mec=(0, 0, 255, 1))
 
-# basic formatting for the axes
+# Basic formatting for the axes
 ax.set_title('AUDIO WAVEFORM')
 ax.set_xlabel('samples')
 ax.set_ylabel('amplitude')
@@ -44,41 +54,52 @@ ax.set_ylim(0, 255)
 ax.set_xlim(0, 2 * CHUNK)
 plt.setp(ax, xticks=[], yticks=[])
 
-# show the plot
+# Show the plot
 plt.show(block=False)
 
 print('stream started')
 
-# for measuring frame rate
+# For measuring frame rate
 frame_count = 0
 start_time = time.time()
 
 while True:
-    
-    # binary data
-    data = stream.read(CHUNK)  
-    
-    # convert data to integers, make np array, then offset it by 127
+
+    # Binary input data
+    data = inputstream.read(CHUNK)
+
+    # Convert data to integers
     data_int = struct.unpack(str(2 * CHUNK) + 'B', data)
-    
-    # create np array and offset by 128
-    data_np = np.array(data_int, dtype='b')[::2] + 128 
+
+    # Convert data to np array and offset by 128
+    data_np = np.array(data_int, dtype='b')[::2] + 128
+
+    # Create array of anti sound
     data_np_mirror = 128 - (data_np - 128)
+
+    # Convert antisound to integer list to output
+    data_int_mirror = (data_np_mirror - 128).tolist()
+
+    # Convert antisound to binary
+    data_mirror = struct.pack(str(CHUNK) + 'h', *data_int_mirror)
+
+    # Output antisound
+    outputstream.write(data_mirror)
 
     line.set_ydata(data_np)
     line_mirror.set_ydata(data_np_mirror)
-    
-    # update figure canvas
+
+    # Update figure canvas
     try:
         fig.canvas.draw()
         fig.canvas.flush_events()
         frame_count += 1
-        
+
     except TclError:
-        
-        # calculate average frame rate
+
+        # Calculate average frame rate
         frame_rate = frame_count / (time.time() - start_time)
-        
+
         print('stream stopped')
         print('average frame rate = {:.0f} FPS'.format(frame_rate))
         break
