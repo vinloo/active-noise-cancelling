@@ -1,5 +1,4 @@
 import pyaudio
-import os
 import struct
 import numpy as np
 import matplotlib.pyplot as plt
